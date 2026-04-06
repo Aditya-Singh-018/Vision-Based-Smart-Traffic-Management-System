@@ -7,11 +7,19 @@ model = YOLO("yolov8n.pt")
 # 2. Open the video file
 video_path = "traffic_video.mp4"
 cap = cv2.VideoCapture(video_path)
+# Check if video opened successfully
+if not cap.isOpened():
+    print("Error: Cannot open video")
+    exit()
 
 # --- Video Writer Setup ---
 width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
 height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
 fps = int(cap.get(cv2.CAP_PROP_FPS))
+
+# Fix for FPS issue
+if fps == 0:
+    fps = 30
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
 out = cv2.VideoWriter('saved_tracked_video.mp4', fourcc, fps, (width, height))
@@ -23,7 +31,7 @@ while cap.isOpened():
         break 
 
     # 3. Track vehicles (persist=True is the magic word for IDs)
-    results = model.track(source=frame, classes=[2, 3, 5, 7], conf=0.5, persist=True, verbose=False)
+    results = model.track(source=frame, classes=[2, 3, 5, 7], conf=0.6, persist=True, verbose=False)
 
     # 4. Extract both IDs and Coordinates for Speed Math
     boxes = results[0].boxes
