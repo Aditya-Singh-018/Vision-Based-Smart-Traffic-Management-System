@@ -1,5 +1,6 @@
 from ultralytics import YOLO
 import cv2
+import csv
 
 # 1. Load the model
 model = YOLO("yolov8n.pt")
@@ -27,12 +28,34 @@ out = cv2.VideoWriter('saved_tracked_video.mp4', fourcc, fps, (width, height))
 
 
 vehicle_ids = set()
+frame_no = 0
+
+with open('traffic_log.csv', 'w', newline='') as file:
+    writer = csv.writer(file)
+    writer.writerow([
+    "Frame",
+    "Vehicles_in_Frame",
+    "Total_Vehicles",
+    "Left_Count",
+    "Center_Count",
+    "Right_Count",
+    "Density",
+    "GreenTime"
+])
+
 # read video frame by frame
-while cap.isOpened():
+max_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+while True:
     success, frame = cap.read()
         
-    if not success:
-        break 
+    if not success or frame is None:
+        print("Video ended properly")
+        break
+
+    if frame_no >= max_frames:
+        break
+
 
     # 3. Track vehicles (persist=True is the magic word for IDs)
     results = model.track(source=frame, classes=[2, 3, 5, 7], conf=0.6, persist=True, verbose=False)
@@ -104,6 +127,23 @@ while cap.isOpened():
     center_density = get_density(center_count)
     right_density = get_density(right_count)
 
+    vehicles_in_frame = len(boxes)
+    total_vehicles = len(vehicle_ids)
+
+    frame_no += 1
+
+    with open('traffic_log.csv', 'a', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow([
+        frame_no,
+        vehicles_in_frame,
+        total_vehicles,
+        left_count,
+        center_count,
+        right_count,
+        level,
+        green_time
+    ])
 
     # 5. Draw the boxes and write the frame
     annotated_frame = results[0].plot()
@@ -149,3 +189,4 @@ while cap.isOpened():
 cap.release()
 out.release() 
 cv2.destroyAllWindows()
+
