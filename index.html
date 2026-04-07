@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Smart Traffic Dashboard</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<div class="container">
+    <h2>🚦 Smart Traffic Management System</h2>
+
+    <input type="file" id="videoFile">
+    <br><br>
+
+    <button onclick="uploadVideo(event)">Upload & Process</button>
+    <p id="status"></p>
+
+    <!-- Stats Cards -->
+    <div class="stats">
+        <div class="card">Total Vehicles: <span id="totalVehicles">-</span></div>
+        <div class="card">Density: <span id="density">-</span></div>
+        <div class="card">Green Time: <span id="greenTime">-</span></div>
+    </div>
+
+    <!-- Video -->
+    <video id="videoPlayer" controls></video>
+
+    <br><br>
+
+    <a id="csvLink" href="#" download>Download CSV</a>
+
+    <!-- Chart -->
+    <canvas id="trafficChart"></canvas>
+
+</div>
+
+<script>
+async function uploadVideo(event) {
+    console.log("FUNCTION STARTED");
+    if (event) event.preventDefault();  
+    const fileInput = document.getElementById("videoFile");
+    const status = document.getElementById("status");
+
+    if (!fileInput.files.length) {
+        alert("Please select a video");
+        return;
+    }
+
+    const file = fileInput.files[0];
+    const formData = new FormData();
+    formData.append("file", file);
+
+    status.innerText = "Processing... please wait ⏳";
+
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    try {
+        console.log("Uploading started...");
+
+        const response = await fetch("http://127.0.0.1:8000/upload", {
+            method: "POST",
+            body: formData
+        });
+
+        console.log("Response received from backend");
+
+        const data = await response.json();
+
+        console.log("Response data:", data);
+
+        status.innerText = "Processing complete ✅";
+
+        const timestamp = new Date().getTime();
+
+        const video = document.getElementById("videoPlayer");
+        video.src = data.video_url + "?t=" + timestamp;
+        video.load();
+
+        document.getElementById("csvLink").href = data.csv_url + "?t=" + timestamp;
+
+        setTimeout(() => {
+            loadCSV(data.csv_url + "?t=" + timestamp);
+        }, 500);
+
+    } catch (err) {
+        console.error(err);
+        status.innerText = "❌ Failed: " + err.message;
+    }
+}
+
+async function loadCSV(url) {
+    const response = await fetch(url);
+    const text = await response.text();
+
+    const rows = text.split("\n").slice(1);
+
+    let frames = [];
+    let vehicles = [];
+
+    let lastRow;
+
+    rows.forEach(row => {
+        const cols = row.split(",");
+        if (cols.length > 2) {
+            frames.push(parseInt(cols[0]));
+            vehicles.push(parseInt(cols[1]));
+            lastRow = cols;
+        }
+    });
+
+    // update stats
+    if (lastRow) {
+        document.getElementById("totalVehicles").innerText = lastRow[2];
+        document.getElementById("density").innerText = lastRow[6];
+        document.getElementById("greenTime").innerText = lastRow[7] + "s";
+    }
+
+    // chart
+    const ctx = document.getElementById("trafficChart").getContext("2d");
+
+    if (window.trafficChartInstance) {
+        window.trafficChartInstance.destroy();
+    }
+
+    window.trafficChartInstance = new Chart(ctx, {
+        type: "line",
+        data: {
+            labels: frames,
+            datasets: [{
+                label: "Vehicles per Frame",
+                data: vehicles,
+                borderWidth: 2,
+                fill: false
+            }]
+        }
+    });
+}
+</script>
+
+</body>
+</html>
